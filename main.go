@@ -22,6 +22,8 @@ const (
 	rootRoute                = "/"
 	sslCertificateEnvVarName = "SSL_CERTIFICATE"
 	sslKeyEnvVarName         = "SSL_KEY"
+	secretEnvVarName         = "SECRET_TO_MASK"
+	defaultSecretString      = "secrets"
 )
 
 var (
@@ -34,6 +36,7 @@ var (
 	routesFlag       routes
 	sslCertificate   = os.Getenv(sslCertificateEnvVarName)
 	sslKey           = os.Getenv(sslKeyEnvVarName)
+	secretString     = os.Getenv(secretEnvVarName)
 )
 
 func init() {
@@ -56,6 +59,10 @@ func init() {
 	flag.Var(&routesFlag, "r", "(alias for -route)")
 	flag.StringVar(&sslCertificate, "ssl-cert", sslCertificate, fmt.Sprintf("path to SSL server certificate (environment variable %q)", sslCertificateEnvVarName))
 	flag.StringVar(&sslKey, "ssl-key", sslKey, fmt.Sprintf("path to SSL private key (environment variable %q)", sslKeyEnvVarName))
+	if secretString == "" {
+		secretString = defaultSecretString
+	}
+	flag.StringVar(&secretString, "secret", secretString, fmt.Sprintf("a string that will be masked with '*****' in any output (env var %q)", secretEnvVarName))
 	flag.Parse()
 	if quietFlag {
 		log.SetOutput(ioutil.Discard)
@@ -74,13 +81,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("address/port: %v", err)
 	}
-	err = server(addr, routesFlag)
+	err = server(addr, routesFlag, secretString)
 	if err != nil {
 		log.Fatalf("start server: %v", err)
 	}
 }
 
-func server(addr string, routes routes) error {
+func server(addr string, routes routes, secret string) error {
 	mux := http.DefaultServeMux
 	handlers := make(map[string]http.Handler)
 	paths := make(map[string]string)
@@ -95,6 +102,7 @@ func server(addr string, routes routes) error {
 			path:        route.Path,
 			allowUpload: allowUploadsFlag,
 			allowDelete: allowDeletesFlag,
+			secret:      []byte(secret),
 		}
 		paths[route.Route] = route.Path
 	}

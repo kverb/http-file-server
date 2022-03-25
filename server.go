@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"html/template"
 	"io"
@@ -113,6 +114,29 @@ type fileHandler struct {
 	path        string
 	allowUpload bool
 	allowDelete bool
+	secret      []byte
+}
+
+// MaskSecretResponseWriter wraps http.ResponseWriter and allows us
+// to intercept the bytes written and mask our secret
+type MaskSecretResponseWriter struct {
+	status int
+	size   int
+	http.ResponseWriter
+	secret []byte
+}
+
+func (w *MaskSecretResponseWriter) Write(data []byte) (int, error) {
+
+	// while it would be nice to obscure the length of the secret, this bypasses
+	// the need to re-calculate and reset the content-length header
+	mask := []byte(strings.Repeat("*", len(w.secret)))
+	masked := bytes.Replace(data, w.secret, mask, -1)
+
+	written, err := w.ResponseWriter.Write(masked)
+	w.size += written
+
+	return written, err
 }
 
 var (
@@ -228,6 +252,7 @@ func (f *fileHandler) serveUploadTo(w http.ResponseWriter, r *http.Request, osPa
 
 // ServeHTTP is http.Handler.ServeHTTP
 func (f *fileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	m := &MaskSecretResponseWriter{0, 0, w, f.secret}
 	log.Printf("[%s] %s %s %s", f.path, r.RemoteAddr, r.Method, r.URL.String())
 	urlPath := r.URL.Path
 	if !strings.HasPrefix(urlPath, "/") {
@@ -277,6 +302,9 @@ func (f *fileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			_ = f.serveStatus(w, r, http.StatusInternalServerError)
 		}
 	default:
-		http.ServeFile(w, r, osPath)
+		if strings.HasSuffix(osPath, ".md") {
+			m.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		}
+		http.ServeFile(m, r, osPath)
 	}
 }

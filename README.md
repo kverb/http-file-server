@@ -1,4 +1,9 @@
-# http-file-server
+# http-file-server with secret string masking
+
+Fork of [sgreben/http-file-server](https://github.com/sgreben/http-file-server) but with the ability to mask a specified string (such as a password) from the sent file.
+The string to be masked can be specified with `--secret <string>` or the `SECRET_TO_MASK` env var.
+
+Here's the original README:
 
 `http-file-server` is a dependency-free HTTP file server. Beyond directory listings and file downloads, it lets you download a whole directory as as `.zip` or `.tar.gz` (generated on-the-fly).
 
